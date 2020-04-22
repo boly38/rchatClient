@@ -7,6 +7,7 @@ var rcToken  = process.env.RC_TOKEN  || 'YourTokenHere';
 var rcHost   = process.env.RC_HOST  || 'myrocketchat-server.mybusiness.com';
 var rcPort   = process.env.RC_PORT  || 443;
 var rcProto  = process.env.RC_PROTO  || 'https';
+var loggerLevel = process.env.RC_LOG_LEVEL || 'INFO';
 
 const readline = require('readline');
 const rocketChatClient = new RocketChatApi(rcProto, rcHost, 443);
@@ -16,7 +17,7 @@ rocketChatClient.setUserId(rcUserId);
 // logging
 var log4js = require('log4js');
 var logger = log4js.getLogger();
-logger.setLevel('DEBUG');
+logger.setLevel(loggerLevel);
 
 var myChannels = [];
 var myGroups = [];
@@ -44,7 +45,7 @@ process.stdin.on('keypress', (str, key) => {
     case 'j': channelsJoined(); break;
     case 'g': groupsJoined(); break;
     case 's': selectNextChannel(); break;
-    case 'o': showSelectedRoomInfo(); break;
+    case 'r': showSelectedRoomRoles(); break;
     default : console.log('unknown command "' + str + '" (ctrl:' + key.ctrl + ' name:' + key.name + ')');
   }
 });
@@ -61,7 +62,7 @@ function menu() {
   console.log("    s  select next channel");
   }
   if (selectedRoomId) {
-  console.log("    o  show selected room info");
+  console.log("    r  show selected room roles");
   }
   console.log("    q or <CTRL> + <c>  quit");
   if (Array.isArray(myChannels) && myChannels.length) {
@@ -82,6 +83,7 @@ function info() {
     rocketChatClient.miscellaneous.info((err, body)=>{
      if (err) {
        logger.info('INFO ERROR', err);
+       return;
      }
      logger.info('INFO', body);
     });
@@ -91,11 +93,12 @@ function me(verbose) {
     rocketChatClient.authentication.me((err, body)=>{
      if (err) {
        logger.info('authentication me ERROR', err);
+       return;
      }
      if (verbose) {
        logger.info('authentication me:', body);
      } else {
-       logger.info('loggued as', body.username);
+       logger.info('connected as', body.username);
      }
     });
 }
@@ -105,6 +108,7 @@ function channelsJoined() {
     rocketChatClient.channels.listJoined({}, (err, body)=> {
       if (err) {
         console.log('channels listJoined ERROR', err);
+        return;
       }
       myChannels = [];
       console.log('channels listJoined :'); //, body);
@@ -122,9 +126,11 @@ function groupsJoined() {
     rocketChatClient.groups.list({}, (err, body)=> {
       if (err) {
         console.log('groups list ERROR', err);
+        return;
       }
       myGroups = [];
-      console.log('groups  list :'); // , body);
+      logger.debug('groups details :', body);
+      logger.info('groups  list :');
       body.groups.forEach(
         group => {
           console.log(' - ', group.name, group.usersCount, group.topic);
@@ -144,15 +150,33 @@ function selectNextChannel() {
     console.log("    selectedChannel:",selectedChannel);
 }
 
-function showSelectedRoomInfo() {
-    if (!selectedChannel) {
+function showSelectedRoomRoles() {
+    if (!selectedRoomId) {
       return;
     }
-    rocketChatClient.groups.info(selectedRoomId, (err, body)=> {
+    /* #5 workaround start
+    */
+    if (!rocketChatClient.groups.roles) {
+      logger.warn("need to update rocket-chat-api-node once https://github.com/gusnips/rocketchat-api-node/pull/5 merged");
+      rocketChatClient.groups.roles = function (roomId, callback) {
+              return this.client.request("GET", "groups.roles", {roomId}, callback);
+          };
+    }
+    /* #5 workaround end
+    */
+
+    rocketChatClient.groups.roles(selectedRoomId, (err, body)=> {
       if (err) {
-        console.log('groups info ERROR', err);
+        console.log('groups roles ERROR', err);
+        return;
       }
-      console.log('groups info :', body);
+      logger.debug('groups roles :', body);
+      logger.info('groups roles :');
+      body.roles.forEach(
+              role => {
+                console.log(' - ', role.u.name, "\t", role.roles);
+              }
+            );
      });
 }
 

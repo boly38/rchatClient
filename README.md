@@ -29,7 +29,7 @@ $ git clone https://github.com/boly38/rchatClient.git
 ### Start the client
 
 Execute the application
-> node ./rc
+> node rc
 
 then follow the instructions.
 
