@@ -21,8 +21,9 @@ logger.setLevel(loggerLevel);
 
 var myChannels = [];
 var myGroups = [];
-var selectedChannel = process.env.RC_PRESELECTED_CHANNEL || undefined;
+var selectedRoom;
 var selectedRoomId = process.env.RC_PRESELECTED_ROOM_ID || undefined;
+var selectedIsGroup = true;
 
 function bye() {
     logger.info("bye");
@@ -36,15 +37,17 @@ process.stdin.on('keypress', (str, key) => {
   if ((key.name == 'q') || (key && key.ctrl && key.name == 'c')) {
     bye();
     return;
+  } else if (!key.ctrl && key.name == 'right') {// -> arrow
+    selectNext();
+    return;
   }
   switch (key.name) { // input menu key dispatcher
     case 'h': menu(); break;
     case 'i': info(); break;
     case 'm': me(false); break;
     case 'd': me(true); break;
-    case 'j': channelsJoined(); break;
-    case 'g': groupsJoined(); break;
-    case 's': selectNextChannel(); break;
+    case 'j': channelsJoined((success)=> {}); break;
+    case 'g': groupsJoined((success)=> {}); break;
     case 'r': showSelectedRoomRoles(); break;
     default : console.log('unknown command "' + str + '" (ctrl:' + key.ctrl + ' name:' + key.name + ')');
   }
@@ -56,25 +59,31 @@ function menu() {
   console.log("    i  get server info");
   console.log("    m  get info about me");
   console.log("    d  get info about me with all details");
-  console.log("    j  get channels I've join");
-  console.log("    g  get groups I've join");
-  if (Array.isArray(myChannels) && myChannels.length) {
-  console.log("    s  select next channel");
-  }
-  if (selectedRoomId) {
+  // console.log("    j  get channels I've join");
+  // console.log("    g  get groups I've join");
+  if (selectedIsGroup && selectedRoomId) {
   console.log("    r  show selected room roles");
+  }
+  if (Array.isArray(myChannels) && myChannels.length) {
+  console.log("    ->  select next channel");
   }
   console.log("    q or <CTRL> + <c>  quit");
   if (Array.isArray(myChannels) && myChannels.length) {
-    console.log("    myChannels:",myChannels.toString());
+    console.log("    myChannels:", showNames(myChannels));
   }
   if (Array.isArray(myGroups) && myGroups.length) {
-    console.log("    myGroups:",myGroups.toString());
+    console.log("    myGroups:", showNames(myGroups));
   }
-  if (selectedChannel) {
-    console.log("    selectedChannel:",selectedChannel);
+  if (selectedRoom) {
+    // console.log("    selectedRoom:",selectedRoom.name);
+    console.log("    selectedRoom" +
+            " fname:"+selectedRoom.fname +
+            " id:" +selectedRoom._id +
+            " " + selectedRoom.usersCount + " user(s)" +
+            (selectedRoom.topic ? "topic:"+selectedRoom.topic : "")
+            );
   }
-  if (selectedRoomId) {
+  if (!selectedRoom && selectedRoomId) {
     console.log("    selectedRoomId:",selectedRoomId);
   }
 }
@@ -93,7 +102,7 @@ function me(verbose) {
     rocketChatClient.authentication.me((err, body)=>{
      if (err) {
        logger.info('authentication me ERROR', err);
-       return;
+       return false;
      }
      if (verbose) {
        logger.info('authentication me:', body);
@@ -101,53 +110,94 @@ function me(verbose) {
        logger.info('connected as', body.username);
      }
     });
+    return true;
 }
 
-function channelsJoined() {
+function channelsJoined(cb) {
     // this does'nt return private channels (groups)
     rocketChatClient.channels.listJoined({}, (err, body)=> {
       if (err) {
         console.log('channels listJoined ERROR', err);
+        cb(false);
         return;
       }
       myChannels = [];
-      console.log('channels listJoined :'); //, body);
+      logger.trace('channels details :', body);
+      logger.debug('channels  list :');
       body.channels.forEach(
         channel => {
-          console.log(' - ', channel.name, channel.usersCount, channel.topic);
-          myChannels.push(channel.name);
+          logger.debug(' - ', channel.name, channel.usersCount, channel.topic);
+          myChannels.push(channel);
         }
       );
+      cb(true);
      });
 }
 
 
-function groupsJoined() {
+function groupsJoined(cb) {
     rocketChatClient.groups.list({}, (err, body)=> {
       if (err) {
         console.log('groups list ERROR', err);
+        cb(false);
         return;
       }
       myGroups = [];
-      logger.debug('groups details :', body);
-      logger.info('groups  list :');
+      logger.trace('groups details :', body);
+      logger.debug('groups  list :');
       body.groups.forEach(
         group => {
-          console.log(' - ', group.name, group.usersCount, group.topic);
-          myGroups.push(group.name);
+          logger.debug(' - ', group.name, group.usersCount, group.topic);
+          myGroups.push(group);
         }
       );
+      cb(true);
      });
 }
 
-function selectNextChannel() {
-    if (!Array.isArray(myChannels) || !myChannels.length) {
-      console.log("type j before!");
+function selectRoom(roomDef, isGroup) {
+    selectedRoom = roomDef;
+    selectedRoomId = roomDef._id;
+    selectedIsGroup = isGroup;
+    menu();
+}
+
+function isNotEmptyArray(myArray) {
+  return Array.isArray(myArray) && myArray.length && myArray.length > 0;
+}
+
+function selectNext() {
+    if (!isNotEmptyArray(myChannels) && !isNotEmptyArray(myGroups)) {
+      return;
     }
-    var index = myChannels.indexOf(selectedChannel) >=0 ? myChannels.indexOf(selectedChannel) : -1;
-    var nextIndex = index+1 >= myChannels.length ? 0 : index+1;
-    selectedChannel = myChannels[nextIndex];
-    console.log("    selectedChannel:",selectedChannel);
+    if (isNotEmptyArray(myChannels) && myChannels.indexOf(selectedRoom) == myChannels.length-1) {
+        if (isNotEmptyArray(myGroups)) {
+          selectRoom(myGroups[0], true);
+        } else {
+          selectRoom(myChannels[0], false);
+        }
+        return;
+    }
+    if (isNotEmptyArray(myGroups) && myGroups.indexOf(selectedRoom) == myGroups.length-1) {
+        if (isNotEmptyArray(myChannels)) {
+          selectRoom(myChannels[0], false);
+        } else {
+          selectRoom(myGroups[0], true);
+        }
+        return;
+    }
+    if (isNotEmptyArray(myGroups) && myGroups.indexOf(selectedRoom) >= 0) {
+        selectRoom(myGroups[myGroups.indexOf(selectedRoom)+1], true);
+        return;
+    }
+    if (isNotEmptyArray(myChannels) && myChannels.indexOf(selectedRoom) >= 0) {
+        selectRoom(myChannels[myChannels.indexOf(selectedRoom)+1], false);
+        return;
+    }
+    selectedRoom = myChannels[0];
+    selectedRoomId = selectedRoom._id;
+    selectedIsGroup = false;
+    menu();
 }
 
 function showSelectedRoomRoles() {
@@ -180,4 +230,29 @@ function showSelectedRoomRoles() {
      });
 }
 
-console.log("my lord, type 'h' for help menu.");
+function showNames(entities) {
+ if (!Array.isArray(entities) || !entities.length) {
+    return " N/A ";
+ }
+ var result = "";
+ entities.forEach( (entity) => {
+     var entityName = entity.name;
+     if (selectedRoom != undefined && (selectedRoom.name === entityName)) {
+       result += " [[ #" + entityName + " ]]";
+     } else {
+       result += " #" + entityName;
+     }
+   }
+ );
+ return result;
+}
+
+/**********/
+channelsJoined((success) => {
+  if (!success) { bye(); }
+  groupsJoined((success) => {
+    if (!success) { bye(); }
+    menu();
+  });
+});
+
