@@ -3,13 +3,22 @@
   "version": "1.0.0",
   "description": "RocketChat client",
   "main": "rc.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boly38/rchatClient.git"
+  },
   "keywords": [
-    "tchat"
+    "tchat",
+    "rocketchat",
+    "rchatClient",
+    "rchat"
   ],
   "author": "Orange-OpenSource",
   "license": "BSD-3",
+  "homepage": "https://github.com/boly38/rchatClient",
   "dependencies": {
     "log4js": "^0.6.28",
-    "rocketchat-api": "^1.0.4"
+    "rocketchat-api": "^1.0.4",
+    "terminal-kit": "^1.35.2"
   }
 }
