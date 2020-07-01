@@ -59,6 +59,17 @@ class RCSession {
      return result;
   }
 
+  getRoomDetail() {
+    let rcs = this;
+    if (!rcs.selectedRoom) {
+        return "(none selected)";
+    }
+    return "id:" + rcs.selectedRoom._id +
+           " fname:" + rcs.selectedRoom.fname +
+           " usersCount:" + rcs.selectedRoom.usersCount +
+           " topic:" + rcs.selectedRoom.topic;
+  }
+
   nextRoom() {
       let rcs = this;
       if (!rcs.hasRoom()) {

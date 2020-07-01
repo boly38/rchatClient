@@ -70,6 +70,7 @@ class RChatClient {
       term( "Help | 'h'elp - 'i'nfo - 'm'e - 'd'etails " + groupRoles + "- '->' select next room - '<-' clear - 'q'uit" ) ;
       term.moveTo( 1 , 2 ) ;
       term( "Room | " + this.rcSession.getRooms() + "\n\n");
+      term( "Room Details | " + this.rcSession.getRoomDetail() + "\n\n");
   }
 
   showHelp() {
